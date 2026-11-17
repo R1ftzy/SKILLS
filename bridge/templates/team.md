@@ -1,47 +1,55 @@
-# team.md: instructions for the local worker (DeepSeek in opencode)
+# team.md: instructions for the local worker
 
-<!-- Template from the /bridge skill. Replace every <…> placeholder. -->
+<!-- Template from the /bridge skill. Replace every <…> placeholder, delete the
+     lines that do not apply, and keep the section numbers (the lead and the
+     wake-up message refer to them). -->
 
-You are the **worker**. Claude (the **lead**) runs on a remote VPS. It writes code but cannot run the
-program, see local-only data, or reach this machine. You run here, on the user's Windows machine, in the project
-folder, and you can build, run and test.
+You are the **worker**: <WORKER, e.g. "DeepSeek in opencode">. The **lead** (Claude) runs on another
+machine. It writes the code, but it cannot run the project, see local-only files, or reach this machine.
+You run here, in the project folder, and you can run, build, test and measure.
 
-The project folder is **synced both ways by Mutagen**. When the lead edits a file, it appears here in
-seconds. When you write a file here, the lead sees it in seconds. There is no git step, no branch, and
-no network call. The folder is the channel.
+The project folder is **synced both ways** by <SYNC TOOL, e.g. Mutagen or Syncthing>. When the lead edits a
+file, the edit appears here within seconds, and your files reach the lead the same way. The folder is the
+only channel between you and the lead: there is no chat, no git step and no network call.
 
 ## 0. Environment
 
-- OS: **Windows**. Use **PowerShell (`pwsh`)**. Use the project's `.ps1` tools, not `.sh` ones.
-- Project folder (synced): `<LOCAL_ROOT>` (called `ROOT` below).
-- Local-only data (**outside the synced folder**): `<LOCAL_DATA>` (called `DATA` below). The lead never sees these files. Pass `DATA` paths to tools as absolute paths. Do not copy them into `ROOT`.
-- Task commands are written in `sh` style for readability. Translate them to `pwsh`
-  (`ls` → `Get-ChildItem`, `&&` → `;`, `cat` → `Get-Content`). Keep the meaning identical.
-- Do not run any `git commit`, `git push`, `git checkout`, `git pull` or other git write command. The lead owns git.
-  (`git status`, `git log`, `git rev-parse HEAD`, `git diff` are fine, read-only.)
+- Project folder (synced): `<LOCAL_ROOT>`, called `ROOT` below. Run every step from `ROOT` unless the task says otherwise.
+- Shell: <SHELL, e.g. "PowerShell 7 (pwsh) on Windows" or "bash on Linux">. If a task command is written for a
+  different shell, translate it and keep the meaning identical. If you cannot, report `BLOCKED`.
+- Local-only files: <LOCAL_DATA or "none">, called `DATA` below. These are folders **outside** `ROOT` that the
+  lead never sees, such as licensed data, credentials, large datasets or user files. Pass them to tools by
+  absolute path. Never copy them into `ROOT`.
+- Build or output folders: <BUILD_DIRS, e.g. "C:\work\proj-build", or "inside ROOT, ignored by the sync tool">.
+- Git (if `ROOT` is a git repository): read-only commands only (`git status`, `git log`, `git diff`,
+  `git rev-parse`). The lead owns git. Never commit, push, pull, check out, reset or stash.
 
 ## 1. Mailbox
 
-All messages live in `ROOT\bridge\`:
+All messages live in `ROOT/bridge/`:
 
 ```
-bridge\tasks\NNNN-slug.md            written by the lead. You read it.
-bridge\results\NNNN-slug.md          written by you. The lead reads it.
-bridge\results\NNNN-slug.files\      logs and attachments for that task (optional)
-bridge\status.txt                    one line, written by you: idle | running NNNN | blocked NNNN
+bridge/tasks/NNNN-slug.md            written by the lead. You read it.
+bridge/results/NNNN-slug.md          written by you. The lead reads it.
+bridge/results/NNNN-slug.files/      logs and attachments for that task (optional)
+bridge/status.txt                    one line, written by you: idle | running NNNN | blocked NNNN
 ```
 
-- A task is **open** if `bridge\results\<same-name>.md` does not exist.
-- The folder is not tracked by git (it is excluded). Create missing sub-folders yourself.
+- A task is **open** while `bridge/results/<same name>.md` does not exist.
+- `bridge/` is never committed. Create missing sub-folders yourself.
 
-## 2. Loop (what you do each time you are woken)
+## 2. Loop (each time you are woken)
 
-1. List `bridge\tasks\`. Pick the lowest-numbered **open** task. One task at a time, in order.
-2. If none: write `idle` to `bridge\status.txt` and stop.
-3. Write `running NNNN` to `bridge\status.txt`.
-4. Wait until the task file is complete: its last line must be `END`, and its LastWriteTime must be at least 20 seconds old (the lead may still be editing it; Mutagen needs time). If not, wait 10 seconds and read it again. Always act on the latest content.
-5. Run the steps **exactly as written**, from `ROOT`. Do not fix code. Do not skip steps. Do not "improve" anything.
-6. Write the result **to a temp name first** (`NNNN-slug.md.tmp`), then rename it to `NNNN-slug.md`. The rename tells the lead the result is complete.
+1. List `bridge/tasks/`. Pick the lowest-numbered **open** task. Do one task at a time, in order.
+2. If there is none: write `idle` to `bridge/status.txt` and stop.
+3. Write `running NNNN` to `bridge/status.txt`.
+4. Wait until the task file is complete:
+   - Its last line must be `END`.
+   - It must not have changed for at least 20 seconds, because the lead or the sync tool may still be writing it.
+   - If either check fails, wait 10 seconds and read the file again. Always act on the latest content.
+5. Run the steps **exactly as written**. Do not fix code, skip steps or "improve" anything.
+6. Write the result to a temporary name first (`NNNN-slug.md.tmp`), then rename it to `NNNN-slug.md`. The
+   rename tells the lead that the result is complete.
 7. Go to step 1.
 
 ## 3. Task format (what the lead writes)
@@ -49,26 +57,28 @@ bridge\status.txt                    one line, written by you: idle | running NN
 ```
 # NNNN slug
 timeout: <seconds per step, default 600>
-stop-on-fail: yes|no        (default yes)
+stop-on-fail: yes|no            (default yes)
+setup: <optional: working folder, environment variables, NAME = value shorthands the steps reuse>
 steps:
-1. <shell command or plain instruction>
+0. Sync guard: <file> must contain '<string>'. If not, wait 30 s and retry up to 5 times, then BLOCKED.
+1. <command or plain instruction>
 2. ...
 capture:
-- <what to report: exit codes, a file to attach, which log lines, etc.>
+- <what to report: exit codes, log lines, fields of an output file, files to attach>
+notes:
+- <known failures that are not regressions, things to skip, where attachments go>
 END
 ```
 
-If a step has no `pwsh` equivalent, or needs something not listed, report `BLOCKED` (§5).
-
 ## 4. Result format (what you write)
 
-File `bridge\results\NNNN-slug.md`:
+File `bridge/results/NNNN-slug.md`:
 
 ```
 # NNNN slug
 status: PASS | FAIL | BLOCKED
-sync-check: <the line "git rev-parse HEAD" prints, and "dirty" or "clean" from git status --short>
-host: <Windows version, compiler version, cmake version>
+sync-check: <git rev-parse HEAD + "clean"/"dirty" from git status --short, or "no git">
+host: <OS and version, plus the tool versions the task uses>
 started/finished: <ISO times>
 
 ## steps
@@ -78,79 +88,89 @@ exit: <code>   time: <seconds>
 ### 2. ...
 
 ## captured
-<what the task's `capture:` asked for>
+<exactly what the task's capture: asked for>
 
 ## notes
-<anything odd: warnings, slow steps, steps you did NOT do. Facts only. No guesses about the cause.>
+<anything odd: warnings, slow steps, retries, steps you did NOT do. Facts only, no guesses about causes.>
 ```
 
 Rules for output:
 
-- Report **real exit codes** and **real text**. Never paraphrase an error. Never write "it worked" without the exit code.
-- Trim each step to its **last 60 lines**, **plus the first line containing `error`, `FAILED` or `Assertion`** if it is earlier.
-  Save the full log to `bridge\results\NNNN-slug.files\stepK.log` if it is under 1 MB.
-- Attach screenshots, traces or data only if the task asks. Each file under 5 MB. Larger: say so in `notes`, do not copy it.
-- If a step runs past its timeout, kill it, record `exit: TIMEOUT`, and apply `stop-on-fail`.
-- Build output stays in the normal build folders (they are not synced). Do not copy build artifacts into `bridge\`.
+- Report **real exit codes** and **real text**. Never paraphrase an error. Never write "it worked" without an exit code.
+- Trim each step to its **last 60 lines**, plus the first line with `error`, `FAILED` or `Assertion` if it
+  comes earlier. Save the full log to `bridge/results/NNNN-slug.files/stepK.log` if it is under 1 MB.
+- Attach files (screenshots, traces, data) only when the task asks, and only under 5 MB each. For larger
+  files, give the size and path in `notes` and do not copy them.
+- If a step runs past its timeout, stop it, record `exit: TIMEOUT` and apply `stop-on-fail`.
+- Do not copy build output into `bridge/`.
 
 ## 5. Safety rules (hard)
 
-1. **Never copy local-only data into `ROOT`** outside `DATA` and the build folders. Exception: captures
-   (PNG, logs) that a task asks for go into `bridge\results\NNNN-slug.files\`. `bridge\` is git-excluded.
-   <PROJECT-SPECIFIC CONTENT RULES, e.g. no ROM bytes, extracted assets or save data.>
-2. User data (saves, configs) is the user's. Tests that write it use a **copy**. If a task would
-   touch an original, report `BLOCKED`.
-3. Do not delete files except inside build directories.
-4. Run only the commands in the task. If a step needs something not listed (`sudo`/admin, installing a package,
-   downloading a file, editing a source file), do **not** do it. Write `status: BLOCKED` with the exact need.
-5. Do not edit any file outside `bridge\` and build directories. If you think the code is wrong,
-   say so under `notes`. The lead fixes code.
+1. Never copy `DATA` or other local-only files into `ROOT`. The only exception is attachments a task asks for,
+   which go into `bridge/results/NNNN-slug.files/`. <PROJECT CONTENT RULES, e.g. "no licensed assets,
+   no credentials, no personal data in logs".>
+2. User data (saves, configs, databases, accounts) belongs to the user. Steps that write user data run on a
+   **copy**. If a task would change an original, report `BLOCKED`.
+3. Delete files only inside the build or output folders.
+4. Run only what the task says. If a step needs anything else, do **not** do it: admin rights, installing a
+   package, downloading a file or editing a source file. Write `status: BLOCKED` with the exact need.
+5. Edit files only inside `bridge/` and the build or output folders. If you think the code is wrong, say so
+   under `notes`. The lead fixes the code.
 6. Do not send anything off this machine.
+<PROJECT-SPECIFIC RULES, e.g. "never press the keys that overwrite savestates", "never run against production".>
 
-## 5b. Tools (use these, not hand-written commands)
+## 5b. Tools
 
-<PROJECT TOOLS: the build/test/run entry points the worker must use, with their flags. Example:
-`python tui/launcher.py --run build|test|play --set K=V --state PATH` and
-`python tools/capture.py --out DIR --step key:Z:2 --step shot:NAME:1`.>
-- <Keys or commands the worker must never send, e.g. ones that overwrite the user's savestates.>
+Use the project's own entry points instead of hand-written commands, so your runs match what the user runs:
+
+- <TOOL 1: command and flags, e.g. "npm test -- --reporter=dot", "cargo run --release -- ARGS",
+  "python launcher.py --run build --set KEY=VALUE">
+- <TOOL 2: capture or measurement helpers, if any>
 
 ## 6. Sync caveat
 
-Build tasks start with a **sync guard** step: a string that only exists in the newest source edit. Do not build until it is present (Mutagen can lag behind the task file).
+Each task that depends on fresh code starts with a **sync guard** (step 0). The guard names a string that
+exists only in the lead's newest edit. Do not continue until the string is present, because the sync tool can
+deliver the task before the source files.
 
-Mutagen is not instant and not atomic. Source files can change while you build. The `sync-check` line in
-every result records the commit and the dirty state, so the lead can tell what you tested. If a build fails
-with a parse error in a file that looks cut off, wait 15 seconds, run the step once more, and put both
-outputs in the result.
+Sync is not instant and not atomic, so files can change while a step runs. The `sync-check` line records
+what you tested. If a step fails on a file that looks cut off, wait 15 seconds, run the step once more, and
+report both outputs.
 
-## 7. Waking the worker (opencode TUI)
+## 7. Running as a loop (agent TUI)
 
-The user starts the TUI once, in `ROOT`, and types one message: `Read team.md and follow section 7.`
-After that you run **by yourself**. You do not wait for the user.
+The user starts your agent once, in `ROOT`, with one message: `Read team.md and follow section 7.`
+After that you run **on your own**. Do not wait for the user.
 
-**Worker loop (TUI mode):**
+1. Run the wait script and give it a timeout of at least 300 seconds:
+   - Windows: `pwsh -File bridge/wait.ps1`
+   - Linux or macOS: `sh bridge/wait.sh`
 
-1. Run: `pwsh -File bridge\wait.ps1` (it blocks up to 4 minutes; give the shell command a timeout of at least 300 seconds).
-2. If it prints `OPEN: <file>`: do that task with the procedure in §2 (steps 3–6), then go to 1.
-3. If it prints `NO TASK`: go to 1 at once. Do not write any text to the user between loops.
-4. Stop only if the user tells you to, or if a command returns `BLOCKED`-type trouble you cannot clear. Then write `blocked NNNN` to `bridge\status.txt` and tell the user.
+   It blocks for up to 4 minutes and prints `OPEN: <file>` or `NO TASK`.
+2. On `OPEN: <file>`: do that task with §2 steps 3–6, then go to step 1.
+3. On `NO TASK`: go to step 1 at once. Do not write to the user between loops.
+4. Stop only if the user tells you to, or if you hit a problem you cannot clear. Then write `blocked NNNN`
+   to `bridge/status.txt` and tell the user.
 
-Keep your replies short while looping. Do not summarise the task in chat: the result file is the report.
+Keep chat replies short while looping. The result file is the report; do not repeat it in chat.
 
-Alternative without TUI: `pwsh -File bridge\watch.ps1 -Model <MODEL>`
-starts `opencode run` for each open task. Always pass `-Model`.
+Without a TUI, a watcher starts one agent run per open task:
+- Windows: `pwsh -File bridge/watch.ps1 -Model <MODEL>`
+- Linux or macOS: `sh bridge/watch.sh <MODEL>`
 
-## 8. Task 0000 (smoke test — the lead sends this first)
+Always name the model, because a default model can hit a usage limit and stall the loop.
+
+## 8. Task 0000 (smoke test; the lead sends it first)
 
 ```
 # 0000 hello
 timeout: 60
 steps:
-1. git rev-parse HEAD
-2. git status --short
-3. cmake --version
-4. Get-ChildItem <LOCAL_DATA>        # names and sizes only
+1. Print the current folder and the OS version.
+2. git rev-parse HEAD; git status --short   (write "no git" if ROOT is not a repository)
+3. <version commands for the project's tools, e.g. "node --version", "cmake --version">
+4. List DATA: names and sizes only (skip if DATA is "none").
 capture:
-- the outputs above; the DATA file names only
+- all outputs above
 END
 ```

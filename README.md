@@ -6,7 +6,7 @@ Three slash commands for [Claude Code](https://claude.com/claude-code). Each one
 |---|---|
 | `/ask <question>` | Answers like a search engine or Claude on the web: read-only, no file edits, and it only looks at the repo when the question is about the repo. |
 | `/rewrite [notes]` | Sends the **complete** current version of the script being worked on in one code block, ready to copy-paste. No `...`, no diffs. |
-| `/bridge [project] [task]` | Claude (on a server) writes the code; a local worker (DeepSeek in opencode on your PC) builds, runs, tests and reports back through a Mutagen-synced folder. |
+| `/bridge [project] [task]` | Claude (on a server) writes the code; a local AI worker (e.g. DeepSeek in opencode on your PC) builds, runs, tests and reports back through a Mutagen-synced folder. |
 
 ## Install
 
@@ -46,13 +46,13 @@ Restart Claude Code (or open a new session), then type `/ask`, `/rewrite` or `/b
 /bridge myproject build it and capture the title screen
 ```
 - Use it when Claude cannot run the program itself, for example because it needs your GPU, local-only data or Windows. Claude edits code on the server. The worker on your PC runs the numbered task files in `bridge/tasks/` and writes results to `bridge/results/`.
-- **First run on a project:** it sets up the mailbox and writes `team.md` (the worker's instructions) from `bridge/templates/`. It also copies `wait.ps1` and `watch.ps1`, then sends a smoke-test task.
+- **First run on a project:** it sets up the mailbox and writes `team.md` (the worker's instructions) from `bridge/templates/`. It also copies the worker's wait and watch scripts (`.ps1` for Windows, `.sh` for Linux/macOS), then sends a smoke-test task.
 - **Each task:**
   - It starts with a sync-guard step, so the worker never builds stale sources.
   - It ends with `END`, and the worker waits until the file is 20 s old.
   - Claude waits for the result in the background, without polling.
-- **Start the worker once:** open opencode in the project folder and type `Read team.md and follow section 7.` For a headless worker, run `pwsh -File bridge\watch.ps1 -Model <model>` instead.
-- **Requirements:** the project folder is synced both ways (Mutagen) between the server and your PC, opencode is installed on the PC, and the build folders are outside the synced folder.
+- **Start the worker once:** open opencode in the project folder and type `Read team.md and follow section 7.` For a headless worker, run `pwsh -File bridge\watch.ps1 -Model <model>` (or `sh bridge/watch.sh <model>`) instead.
+- **Requirements:** the project folder is synced both ways (e.g. Mutagen) between the server and your PC, a CLI agent such as opencode runs on the PC, and the build folders are outside the synced folder.
 
 ## Notes
 
