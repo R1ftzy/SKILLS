@@ -20,7 +20,7 @@ only channel between you and the lead: there is no chat, no git step and no netw
 - Local-only files: <LOCAL_DATA or "none">, called `DATA` below. These are folders **outside** `ROOT` that the
   lead never sees, such as licensed data, credentials, large datasets or user files. Pass them to tools by
   absolute path. Never copy them into `ROOT`.
-- Build or output folders: <BUILD_DIRS, e.g. "C:\work\proj-build", or "inside ROOT, ignored by the sync tool">.
+- Build and output folders: `<BUILD_DIRS, e.g. C:\work\proj-build>`. They are **outside `ROOT`** (see §5 rule 7).
 - Git (if `ROOT` is a git repository): read-only commands only (`git status`, `git log`, `git diff`,
   `git rev-parse`). The lead owns git. Never commit, push, pull, check out, reset or stash.
 
@@ -117,6 +117,11 @@ Rules for output:
 5. Edit files only inside `bridge/` and the build or output folders. If you think the code is wrong, say so
    under `notes`. The lead fixes the code.
 6. Do not send anything off this machine.
+7. **Never build inside `ROOT`.** Build trees, dependency caches and generated output go to the build folders
+   from §0, outside the synced folder. The sync tool races the lock and temp files that git, compilers and
+   package managers write, so builds break (for example failed git clones in CMake FetchContent), and gigabytes
+   get copied to the lead. If a project command would build inside `ROOT`, use its build-folder option
+   (§5b). If it has none, report `BLOCKED` so the lead can add one.
 <PROJECT-SPECIFIC RULES, e.g. "never press the keys that overwrite savestates", "never run against production".>
 
 ## 5b. Tools

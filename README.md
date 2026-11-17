@@ -6,7 +6,7 @@ Three slash commands for [Claude Code](https://claude.com/claude-code). Each one
 |---|---|
 | `/ask <question>` | Answers like a search engine or Claude on the web: read-only, no file edits, and it only looks at the repo when the question is about the repo. |
 | `/rewrite [notes]` | Sends the **complete** current version of the script being worked on in one code block, ready to copy-paste. No `...`, no diffs. |
-| `/bridge [project] [task]` | Claude (on a server) writes the code; a local AI worker (e.g. DeepSeek in opencode on your PC) builds, runs, tests and reports back through a Mutagen-synced folder. |
+| `/bridge [project] [task]` | Claude (on a server) writes the code; a local AI worker (e.g. DeepSeek in opencode on your PC) builds, runs, tests and reports back through a synced folder. First run analyses the repo and sets everything up. |
 
 ## Install
 
@@ -41,18 +41,45 @@ Restart Claude Code (or open a new session), then type `/ask`, `/rewrite` or `/b
 - Adds 2–3 lines on what changed. It doesn't write to disk unless you ask.
 
 ### `/bridge`
-```
-/bridge myproject
-/bridge myproject build it and capture the title screen
-```
-- Use it when Claude cannot run the program itself, for example because it needs your GPU, local-only data or Windows. Claude edits code on the server. The worker on your PC runs the numbered task files in `bridge/tasks/` and writes results to `bridge/results/`.
-- **First run on a project:** it sets up the mailbox and writes `team.md` (the worker's instructions) from `bridge/templates/`. It also copies the worker's wait and watch scripts (`.ps1` for Windows, `.sh` for Linux/macOS), then sends a smoke-test task.
-- **Each task:**
-  - It starts with a sync-guard step, so the worker never builds stale sources.
-  - It ends with `END`, and the worker waits until the file is 20 s old.
-  - Claude waits for the result in the background, without polling.
-- **Start the worker once:** open opencode in the project folder and type `Read team.md and follow section 7.` For a headless worker, run `pwsh -File bridge\watch.ps1 -Model <model>` (or `sh bridge/watch.sh <model>`) instead.
-- **Requirements:** the project folder is synced both ways (e.g. Mutagen) between the server and your PC, a CLI agent such as opencode runs on the PC, and the build folders are outside the synced folder.
+
+Claude works on a server but can't run your project (your GPU, your OS, files that must stay on your PC).
+`/bridge` pairs it with a **local AI worker** on your PC, such as DeepSeek in opencode. Claude writes the code,
+the worker builds, runs and tests it, and both talk through files in a folder synced between the two machines.
+
+**How to use it**
+
+1. **Sync the project folder** between your PC and the server, both ways. Mutagen is one option:
+   ```
+   mutagen sync create --name=myproject C:\path\to\myproject user@server:~/myproject --ignore=build --ignore=node_modules
+   ```
+   Keep build folders **outside** the synced folder. The sync breaks builds (lock files, git clones) and
+   copies gigabytes to the server.
+2. **On the server, in the project, run** `/bridge`. On the first run Claude:
+   - analyses the repo: build and test commands, CI, the OS it needs, local-only data, GPU and other hardware;
+   - shows a **bridge plan**: what the worker will do, the programs to install, the agent harness
+     (opencode, Claude Code, Codex CLI, Gemini CLI, Antigravity), a model, and any MCP server it needs
+     (usually none);
+   - asks for your choices, then writes `team.md` (the worker's instructions) and the wait and watch scripts
+     for your OS and harness;
+   - gives you the setup steps.
+3. **On your PC, follow those steps**: install the programs, allow the agent to run commands in the
+   project folder, then start the worker:
+   - TUI: open the agent in the project folder and send `Read team.md and follow section 7.`
+   - Headless: `pwsh -File bridge\watch.ps1 -Model <model>` or `sh bridge/watch.sh <model>`.
+4. **Test run:** Claude sends task `0000` (versions, paths, git state). When it passes, the bridge is ready.
+5. **Work:** ask for what you want, for example `/bridge build it and capture the title screen`.
+   - Claude edits code and writes numbered tasks to `bridge/tasks/`.
+   - The worker runs them and writes `bridge/results/`.
+   - Claude reads the results and repeats until done.
+
+**Rules built in:**
+- Each task starts with a sync guard, so the worker never builds stale code.
+- The worker only reports facts. It never edits code, installs anything or runs git writes.
+- Private data stays on your PC, and tests use copies of user data.
+- Builds never run inside the synced folder.
+
+Files: `bridge/SKILL.md` (Claude's side), `bridge/templates/` (`team.md`, `wait`/`watch` scripts),
+`bridge/reference/harnesses.md` (harness commands, permissions and MCP suggestions).
 
 ## Notes
 
